@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <h2>Add New Sale</h2>
+    <form method="POST">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Sale ID</label>
+                <input name="id" type="number" min="1" required>
+            </div>
+            <div class="form-group">
+                <label>Sale Date</label>
+                <input name="date" type="date" required>
+            </div>
+            <div class="form-group">
+                <label>Sold Price</label>
+                <input name="sold_price" type="number" step="0.01" min="0.01" required>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Customer ID</label>
+                <input name="customer_id" type="number" min="1" required>
+            </div>
+            <div class="form-group">
+                <label>Employee ID</label>
+                <input name="employee_id" type="number" min="1" required>
+            </div>
+            <div class="form-group">
+                <label>VIN</label>
+                <input name="vin" type="text" required>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-success">Add Sale</button>
+        <a href="/sales" class="btn btn-primary">Cancel</a>
+    </form>
+</div>
+{% endblock %}

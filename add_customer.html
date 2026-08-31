@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <h2>Add New Customer</h2>
+    <form method="POST">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Customer ID</label>
+                <input name="id" type="number" min="1" required>
+            </div>
+            <div class="form-group">
+                <label>Name</label>
+                <input name="name" type="text" required>
+            </div>
+            <div class="form-group">
+                <label>Credit Score</label>
+                <input name="credit" type="number" min="300" max="850" required>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Email</label>
+                <input name="email" type="email" required>
+            </div>
+            <div class="form-group">
+                <label>Phone Number</label>
+                <input name="phone" type="text" required>
+            </div>
+            <div class="form-group">
+                <label>Loan Amount</label>
+                <input name="loan" type="number" step="0.01" min="0.01" required>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-success">Add Customer</button>
+        <a href="/customers" class="btn btn-primary">Cancel</a>
+    </form>
+</div>
+{% endblock %}

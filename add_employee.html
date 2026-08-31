@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <h2>Add New Employee</h2>
+    <form method="POST">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Employee ID</label>
+                <input name="id" type="number" min="1" required>
+            </div>
+            <div class="form-group">
+                <label>Name</label>
+                <input name="name" type="text" required>
+            </div>
+            <div class="form-group">
+                <label>Position</label>
+                <select name="position" required>
+                    <option>Salesperson</option>
+                    <option>Mechanic</option>
+                    <option>Manager</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Phone Number</label>
+                <input name="phone" type="text" required>
+            </div>
+            <div class="form-group">
+                <label>Email</label>
+                <input name="email" type="email" required>
+            </div>
+            <div class="form-group">
+                <label>Dealership ID</label>
+                <input name="dealership_id" type="number" min="1" required>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-success">Add Employee</button>
+        <a href="/employees" class="btn btn-primary">Cancel</a>
+    </form>
+</div>
+{% endblock %}

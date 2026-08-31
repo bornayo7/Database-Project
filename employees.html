@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <h2>Employees</h2>
+    {% if mode != 'view' and mode != 'delete' %}
+    <a href="/employees/add" class="btn btn-primary" style="margin-bottom: 15px;">+ Add Employee</a>
+    {% endif %}
+    <table>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Position</th>
+            <th>Phone</th>
+            <th>Email</th>
+            <th>Dealership City</th>
+            {% if mode != 'view' %}
+            <th>Actions</th>
+            {% endif %}
+        </tr>
+        {% for e in employees %}
+        <tr>
+            <td>{{ e.EmployeeID }}</td>
+            <td>{{ e.EmployeeName }}</td>
+            <td>{{ e.Position }}</td>
+            <td>{{ e.PhoneNumber }}</td>
+            <td>{{ e.Email }}</td>
+            <td>{{ e.DealershipCity }}</td>
+            {% if mode != 'view' %}
+            <td><a href="/employees/delete/{{ e.EmployeeID }}" class="btn btn-danger" onclick="return confirm('Delete this employee?')">Delete</a></td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+{% endblock %}

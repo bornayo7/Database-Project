@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <h2>Add New Vehicle</h2>
+    <form method="POST">
+        <div class="form-row">
+            <div class="form-group">
+                <label>VIN</label>
+                <input name="vin" type="text" required>
+            </div>
+            <div class="form-group">
+                <label>Brand</label>
+                <input name="brand" type="text" required>
+            </div>
+            <div class="form-group">
+                <label>Model</label>
+                <input name="model" type="text" required>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Type</label>
+                <select name="type">
+                    <option>SUV</option>
+                    <option>Sedan</option>
+                    <option>Truck</option>
+                    <option>Coupe</option>
+                    <option>Hatchback</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Year</label>
+                <input name="year" type="number" min="1886" max="2027" value="2022" required>
+            </div>
+            <div class="form-group">
+                <label>Miles</label>
+                <input name="miles" type="number" min="0" required>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Dealership ID</label>
+                <input name="dealership_id" type="number" min="1" required>
+            </div>
+            <div class="form-group">
+                <label>Bought Price</label>
+                <input name="bought_price" type="number" step="0.01" min="0.01" required>
+            </div>
+            <div class="form-group">
+                <label>Status</label>
+                <select name="status">
+                    <option>Available</option>
+                    <option>Sold</option>
+                    <option>Reserved</option>
+                </select>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-success">Add Vehicle</button>
+        <a href="/vehicles" class="btn btn-primary">Cancel</a>
+    </form>
+</div>
+{% endblock %}

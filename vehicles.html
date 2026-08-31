@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <h2>Vehicles</h2>
+
+    <div class="filter-bar">
+        <span>Filter:</span>
+        <a href="/vehicles?status=All&mode={{ mode }}" class="{{ 'active' if current_filter == 'All' }}">All</a>
+        <a href="/vehicles?status=Available&mode={{ mode }}" class="{{ 'active' if current_filter == 'Available' }}">Available</a>
+        <a href="/vehicles?status=Sold&mode={{ mode }}" class="{{ 'active' if current_filter == 'Sold' }}">Sold</a>
+        <a href="/vehicles?status=Reserved&mode={{ mode }}" class="{{ 'active' if current_filter == 'Reserved' }}">Reserved</a>
+    </div>
+
+    {% if mode != 'view' and mode != 'delete' %}
+    <a href="/vehicles/add" class="btn btn-primary" style="margin-bottom: 15px;">+ Add Vehicle</a>
+    {% endif %}
+    <table>
+        <tr>
+            <th>VIN</th>
+            <th>Brand</th>
+            <th>Model</th>
+            <th>Type</th>
+            <th>Year</th>
+            <th>Miles</th>
+            <th>Bought Price</th>
+            <th>Status</th>
+            {% if mode != 'view' %}
+            <th>Actions</th>
+            {% endif %}
+        </tr>
+        {% for v in vehicles %}
+        <tr>
+            <td>{{ v.VIN }}</td>
+            <td>{{ v.Brand }}</td>
+            <td>{{ v.Model }}</td>
+            <td>{{ v.Type }}</td>
+            <td>{{ v.Year }}</td>
+            <td>{{ "{:,}".format(v.Miles) }}</td>
+            <td>${{ "{:,.2f}".format(v.BoughtPrice) }}</td>
+            <td><span class="badge badge-{{ v.InventoryStatus|lower }}">{{ v.InventoryStatus }}</span></td>
+            {% if mode != 'view' %}
+            <td><a href="/vehicles/delete/{{ v.VIN }}" class="btn btn-danger" onclick="return confirm('Delete this vehicle?')">Delete</a></td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+{% endblock %}

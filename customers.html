@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <h2>Customers</h2>
+    {% if mode != 'view' and mode != 'delete' %}
+    <a href="/customers/add" class="btn btn-primary" style="margin-bottom: 15px;">+ Add Customer</a>
+    {% endif %}
+    <table>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Credit Score</th>
+            <th>Email</th>
+            <th>Phone</th>
+            <th>Loan</th>
+            {% if mode != 'view' %}
+            <th>Actions</th>
+            {% endif %}
+        </tr>
+        {% for c in customers %}
+        <tr>
+            <td>{{ c.CustomerID }}</td>
+            <td>{{ c.CustomerName }}</td>
+            <td>{{ c.CreditScore }}</td>
+            <td>{{ c.Email }}</td>
+            <td>{{ c.PhoneNumber }}</td>
+            <td>${{ "{:,.2f}".format(c.Loan) }}</td>
+            {% if mode != 'view' %}
+            <td><a href="/customers/delete/{{ c.CustomerID }}" class="btn btn-danger" onclick="return confirm('Delete this customer?')">Delete</a></td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+{% endblock %}

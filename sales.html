@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <h2>Sales Transactions</h2>
+    <div class="metric-strip">
+        <span class="metric-label">Total Revenue</span>
+        <span class="metric-value">${{ "{:,.2f}".format(total_revenue) }}</span>
+    </div>
+    {% if mode != 'view' and mode != 'delete' %}
+    <a href="/sales/add" class="btn btn-primary" style="margin-bottom: 15px;">+ Add Sale</a>
+    {% endif %}
+    <table>
+        <tr>
+            <th>Sale ID</th>
+            <th>Date</th>
+            <th>Customer</th>
+            <th>Salesperson</th>
+            <th>Vehicle</th>
+            <th>Sold Price</th>
+            {% if mode != 'view' %}
+            <th>Actions</th>
+            {% endif %}
+        </tr>
+        {% for s in sales %}
+        <tr>
+            <td>{{ s.SaleID }}</td>
+            <td>{{ s.SaleDate }}</td>
+            <td>{{ s.CustomerName }}</td>
+            <td>{{ s.EmployeeName }}</td>
+            <td>{{ s.Brand }} {{ s.Model }}</td>
+            <td>${{ "{:,.2f}".format(s.SoldPrice) }}</td>
+            {% if mode != 'view' %}
+            <td><a href="/sales/delete/{{ s.SaleID }}" class="btn btn-danger" onclick="return confirm('Delete this sale?')">Delete</a></td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+{% endblock %}

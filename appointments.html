@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <h2>Service Appointments</h2>
+    {% if mode != 'view' and mode != 'delete' %}
+    <a href="/appointments/add" class="btn btn-primary" style="margin-bottom: 15px;">+ Add Appointment</a>
+    {% endif %}
+    <table>
+        <tr>
+            <th>Appointment ID</th>
+            <th>Date</th>
+            <th>Status</th>
+            <th>Customer</th>
+            <th>Employee</th>
+            <th>Vehicle</th>
+            {% if mode != 'view' %}
+            <th>Actions</th>
+            {% endif %}
+        </tr>
+        {% for a in appointments %}
+        <tr>
+            <td>{{ a.AppointmentID }}</td>
+            <td>{{ a.AppointmentDate }}</td>
+            <td><span class="badge badge-{{ a.Status|lower }}">{{ a.Status }}</span></td>
+            <td>{{ a.CustomerName }}</td>
+            <td>{{ a.EmployeeName }}</td>
+            <td>{{ a.Brand }} {{ a.Model }}</td>
+            {% if mode != 'view' %}
+            <td><a href="/appointments/delete/{{ a.AppointmentID }}" class="btn btn-danger" onclick="return confirm('Delete this appointment?')">Delete</a></td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <h2>Dealerships</h2>
+    {% if mode != 'view' and mode != 'delete' %}
+    <a href="/dealerships/add" class="btn btn-primary" style="margin-bottom: 15px;">+ Add Dealership</a>
+    {% endif %}
+    <table>
+        <tr>
+            <th>ID</th>
+            <th>Address</th>
+            <th>City</th>
+            <th>State</th>
+            <th>Zip Code</th>
+            <th>Cars in Stock</th>
+            {% if mode != 'view' %}
+            <th>Actions</th>
+            {% endif %}
+        </tr>
+        {% for d in dealerships %}
+        <tr>
+            <td>{{ d.DealershipID }}</td>
+            <td>{{ d.Address }}</td>
+            <td>{{ d.City }}</td>
+            <td>{{ d.State }}</td>
+            <td>{{ d.ZipCode }}</td>
+            <td>{{ d.CarCount }}</td>
+            {% if mode != 'view' %}
+            <td><a href="/dealerships/delete/{{ d.DealershipID }}" class="btn btn-danger" onclick="return confirm('Delete this dealership?')">Delete</a></td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+{% endblock %}

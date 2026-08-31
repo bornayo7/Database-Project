@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Dashboard</h1>
+
+<div class="stats">
+    <a href="/customers" class="stat-card">
+        <div class="number">{{ customer_count }}</div>
+        <div class="label">Customers</div>
+    </a>
+    <a href="/vehicles" class="stat-card">
+        <div class="number">{{ vehicle_count }}</div>
+        <div class="label">Vehicles</div>
+    </a>
+    <a href="/employees" class="stat-card">
+        <div class="number">{{ employee_count }}</div>
+        <div class="label">Employees</div>
+    </a>
+    <a href="/sales" class="stat-card">
+        <div class="number">{{ sale_count }}</div>
+        <div class="label">Sales</div>
+    </a>
+    <a href="/sales" class="stat-card">
+        <div class="number">${{ "{:,.0f}".format(total_revenue) }}</div>
+        <div class="label">Revenue</div>
+    </a>
+</div>
+
+<div class="dashboard-actions">
+    <a href="/action/add" class="action-card">
+        <div class="action-title">Add</div>
+        <div class="action-desc">Add new records to a table</div>
+    </a>
+    <a href="/action/delete" class="action-card">
+        <div class="action-title">Remove</div>
+        <div class="action-desc">Delete records from a table</div>
+    </a>
+    <a href="/action/view" class="action-card">
+        <div class="action-title">View</div>
+        <div class="action-desc">View table data</div>
+    </a>
+</div>
+{% endblock %}

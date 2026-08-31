@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <h2>Diagrams</h2>
+    <p class="page-lead">Embedded previews of the two project diagrams from Google Drive.</p>
+    <div class="diagram-grid">
+        <div class="diagram-panel">
+            <h3>Supporting Schema</h3>
+            <div class="diagram-frame-wrap">
+                <iframe class="diagram-frame" src="{{ diagram_preview_url }}" title="Supporting Schema Diagram" loading="lazy"></iframe>
+            </div>
+        </div>
+        <div class="diagram-panel">
+            <h3>ER Diagram</h3>
+            <div class="diagram-frame-wrap">
+                <img class="diagram-image" src="{{ url_for('er_diagram_image') }}" alt="ER Diagram">
+            </div>
+        </div>
+    </div>
+    <p class="subtle">If a preview does not load locally, open the original Drive files: <a href="{{ diagram_url }}" target="_blank" rel="noopener noreferrer">Supporting Schema</a> and <a href="{{ er_diagram_url }}" target="_blank" rel="noopener noreferrer">ER Diagram</a>.</p>
+</div>
+
+<div class="card">
+    <h2>Relationship Overview</h2>
+    <div class="relationship-grid">
+        {% for relationship in relationship_map %}
+        <div class="relationship-pill">
+            <span class="relationship-source"><code>{{ relationship.source }}</code></span>
+            <span class="relationship-arrow">→</span>
+            <span class="relationship-target"><code>{{ relationship.target }}</code></span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="card">
+    <h2>Table Summary</h2>
+    <div class="table-scroll">
+        <table>
+            <tr>
+                <th>Table</th>
+                <th>Primary Key</th>
+                <th>Foreign Keys</th>
+                <th>Columns</th>
+                <th>Description</th>
+            </tr>
+            {% for entity in schema_entities %}
+            <tr>
+                <td>{{ entity.display_name }}</td>
+                <td><code>{{ entity.primary_key }}</code></td>
+                <td>
+                    {% if entity.foreign_keys %}
+                        {% for foreign_key in entity.foreign_keys %}
+                            <div><code>{{ foreign_key.column }}</code></div>
+                        {% endfor %}
+                    {% else %}
+                        None
+                    {% endif %}
+                </td>
+                <td>{{ entity.columns | length }}</td>
+                <td>{{ entity.description }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>
+
+{% for entity in schema_entities %}
+<div class="card entity-card">
+    <div class="entity-header">
+        <div>
+            <h2>{{ entity.display_name }}</h2>
+            <p class="page-lead">{{ entity.description }}</p>
+        </div>
+        <div class="entity-meta">
+            <span class="schema-pill schema-pill-primary">PK: {{ entity.primary_key }}</span>
+            {% if entity.foreign_keys %}
+                {% for foreign_key in entity.foreign_keys %}
+                <span class="schema-pill schema-pill-foreign">FK: {{ foreign_key.column }}</span>
+                {% endfor %}
+            {% else %}
+                <span class="schema-pill schema-pill-neutral">No foreign keys</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="table-scroll">
+        <table>
+            <tr>
+                <th>Column</th>
+                <th>Type</th>
+                <th>Key Role</th>
+                <th>Domain / Notes</th>
+            </tr>
+            {% for column in entity.columns %}
+            <tr>
+                <td><code>{{ column.name }}</code></td>
+                <td>{{ column.type }}</td>
+                <td>{{ column.role }}</td>
+                <td>{{ column.domain }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}

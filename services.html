@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <h2>Service Records</h2>
+    {% if mode != 'view' and mode != 'delete' %}
+    <a href="/services/add" class="btn btn-primary" style="margin-bottom: 15px;">+ Add Service Record</a>
+    {% endif %}
+    <table>
+        <tr>
+            <th>Service ID</th>
+            <th>Date</th>
+            <th>Service Done</th>
+            <th>Vehicle</th>
+            <th>Mechanic</th>
+            <th>Cost</th>
+            {% if mode != 'view' %}
+            <th>Actions</th>
+            {% endif %}
+        </tr>
+        {% for r in records %}
+        <tr>
+            <td>{{ r.ServiceID }}</td>
+            <td>{{ r.ServiceDate }}</td>
+            <td>{{ r.ServiceDone }}</td>
+            <td>{{ r.Brand }} {{ r.Model }}</td>
+            <td>{{ r.EmployeeName }}</td>
+            <td>${{ "{:,.2f}".format(r.Cost) }}</td>
+            {% if mode != 'view' %}
+            <td><a href="/services/delete/{{ r.ServiceID }}" class="btn btn-danger" onclick="return confirm('Delete this record?')">Delete</a></td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+{% endblock %}
