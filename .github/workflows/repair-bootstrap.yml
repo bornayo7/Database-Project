@@ -34,13 +34,12 @@ jobs:
       - name: Apply reviewed asset transformations
         run: |
           python .repair_assets.py .
-          mv .repair_tests.yml .github/workflows/tests.yml
-          rm .repair_assets.py .github/workflows/repair-bootstrap.yml
+          rm .repair_assets.py
       - run: python -m pip install -r requirements-dev.txt
       - run: python -m compileall -q InterfaceDatabase.py db.py manage.py validation.py tests
       - name: Run real MySQL regression suite
         run: python -m pytest -q --junitxml=test-results.xml
-      - name: Commit tested assets to repair branch only
+      - name: Commit tested application assets to repair branch only
         run: |
           git diff --check
           git config user.name 'github-actions[bot]'
