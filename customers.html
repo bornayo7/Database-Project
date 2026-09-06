@@ -3,9 +3,9 @@
 <div class="card">
     <h2>Customers</h2>
     {% if mode != 'view' and mode != 'delete' %}
-    <a href="/customers/add" class="btn btn-primary" style="margin-bottom: 15px;">+ Add Customer</a>
+    <a href="{{ url_for('web.add_customer') }}" class="btn btn-primary" style="margin-bottom: 15px;">+ Add Customer</a>
     {% endif %}
-    <table>
+    <div class="table-scroll"><table>
         <tr>
             <th>ID</th>
             <th>Name</th>
@@ -24,12 +24,17 @@
             <td>{{ c.CreditScore }}</td>
             <td>{{ c.Email }}</td>
             <td>{{ c.PhoneNumber }}</td>
-            <td>${{ "{:,.2f}".format(c.Loan) }}</td>
+            <td>{{ c.Loan|money }}</td>
             {% if mode != 'view' %}
-            <td><a href="/customers/delete/{{ c.CustomerID }}" class="btn btn-danger" onclick="return confirm('Delete this customer?')">Delete</a></td>
+            <td><form method="POST" action="{{ url_for('web.delete_customer', id=c.CustomerID) }}" class="delete-form" data-confirm="Delete this record?">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-danger">Delete</button>
+            </form></td>
             {% endif %}
         </tr>
         {% endfor %}
-    </table>
+    </table></div>
+    {% if not customers %}<p class="subtle">No records found.</p>{% endif %}
+    {% include "pagination.html" %}
 </div>
 {% endblock %}

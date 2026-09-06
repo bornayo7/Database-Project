@@ -3,9 +3,9 @@
 <div class="card">
     <h2>Dealerships</h2>
     {% if mode != 'view' and mode != 'delete' %}
-    <a href="/dealerships/add" class="btn btn-primary" style="margin-bottom: 15px;">+ Add Dealership</a>
+    <a href="{{ url_for('web.add_dealership') }}" class="btn btn-primary" style="margin-bottom: 15px;">+ Add Dealership</a>
     {% endif %}
-    <table>
+    <div class="table-scroll"><table>
         <tr>
             <th>ID</th>
             <th>Address</th>
@@ -26,10 +26,15 @@
             <td>{{ d.ZipCode }}</td>
             <td>{{ d.CarCount }}</td>
             {% if mode != 'view' %}
-            <td><a href="/dealerships/delete/{{ d.DealershipID }}" class="btn btn-danger" onclick="return confirm('Delete this dealership?')">Delete</a></td>
+            <td><form method="POST" action="{{ url_for('web.delete_dealership', id=d.DealershipID) }}" class="delete-form" data-confirm="Delete this record?">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-danger">Delete</button>
+            </form></td>
             {% endif %}
         </tr>
         {% endfor %}
-    </table>
+    </table></div>
+    {% if not dealerships %}<p class="subtle">No records found.</p>{% endif %}
+    {% include "pagination.html" %}
 </div>
 {% endblock %}

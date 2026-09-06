@@ -10,33 +10,33 @@
 
 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
     {% if action == 'add' %}
-        <a href="/customers/add" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Customers</a>
-        <a href="/vehicles/add" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Vehicles</a>
-        <a href="/employees/add" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Employees</a>
-        <a href="/dealerships/add" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Dealerships</a>
-        <a href="/sales/add" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Sales</a>
-        <a href="/services/add" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Service Records</a>
-        <a href="/appointments/add" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Service Appointments</a>
+        <a href="{{ url_for('web.add_customer') }}" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Customers</a>
+        <a href="{{ url_for('web.add_vehicle') }}" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Vehicles</a>
+        <a href="{{ url_for('web.add_employee') }}" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Employees</a>
+        <a href="{{ url_for('web.add_dealership') }}" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Dealerships</a>
+        <a href="{{ url_for('web.add_sale') }}" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Sales</a>
+        <a href="{{ url_for('web.add_service') }}" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Service Records</a>
+        <a href="{{ url_for('web.add_appointment') }}" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Service Appointments</a>
     {% elif action == 'delete' %}
-        <a href="/customers?mode=delete" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Customers</a>
-        <a href="/vehicles?mode=delete" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Vehicles</a>
-        <a href="/employees?mode=delete" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Employees</a>
-        <a href="/dealerships?mode=delete" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Dealerships</a>
-        <a href="/sales?mode=delete" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Sales</a>
-        <a href="/services?mode=delete" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Service Records</a>
-        <a href="/appointments?mode=delete" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Service Appointments</a>
+        <a href="{{ url_for('web.customers', mode='delete') }}" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Customers</a>
+        <a href="{{ url_for('web.vehicles', mode='delete') }}" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Vehicles</a>
+        <a href="{{ url_for('web.employees', mode='delete') }}" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Employees</a>
+        <a href="{{ url_for('web.dealerships', mode='delete') }}" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Dealerships</a>
+        <a href="{{ url_for('web.sales', mode='delete') }}" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Sales</a>
+        <a href="{{ url_for('web.services', mode='delete') }}" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Service Records</a>
+        <a href="{{ url_for('web.appointments', mode='delete') }}" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Service Appointments</a>
     {% else %}
-        <a href="/customers?mode=view" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Customers</a>
-        <a href="/vehicles?mode=view" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Vehicles</a>
-        <a href="/employees?mode=view" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Employees</a>
-        <a href="/dealerships?mode=view" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Dealerships</a>
-        <a href="/sales?mode=view" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Sales</a>
-        <a href="/services?mode=view" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Service Records</a>
-        <a href="/appointments?mode=view" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Service Appointments</a>
+        <a href="{{ url_for('web.customers', mode='view') }}" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Customers</a>
+        <a href="{{ url_for('web.vehicles', mode='view') }}" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Vehicles</a>
+        <a href="{{ url_for('web.employees', mode='view') }}" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Employees</a>
+        <a href="{{ url_for('web.dealerships', mode='view') }}" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Dealerships</a>
+        <a href="{{ url_for('web.sales', mode='view') }}" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Sales</a>
+        <a href="{{ url_for('web.services', mode='view') }}" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Service Records</a>
+        <a href="{{ url_for('web.appointments', mode='view') }}" class="btn btn-primary" style="text-align: center; padding: 20px; font-size: 16px;">Service Appointments</a>
     {% endif %}
 </div>
 
 <div style="margin-top: 20px;">
-    <a href="/" class="btn btn-primary">Back to Dashboard</a>
+    <a href="{{ url_for('web.home') }}" class="btn btn-primary">Back to Dashboard</a>
 </div>
 {% endblock %}

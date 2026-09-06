@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card"><h1>Request could not be completed ({{ code }})</h1>
+<p role="alert">{{ message }}</p>
+<a class="btn btn-primary" href="{{ url_for('web.home') if session.get('user') else url_for('login') }}">Return</a></div>
+{% endblock %}

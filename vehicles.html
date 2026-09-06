@@ -5,16 +5,16 @@
 
     <div class="filter-bar">
         <span>Filter:</span>
-        <a href="/vehicles?status=All&mode={{ mode }}" class="{{ 'active' if current_filter == 'All' }}">All</a>
-        <a href="/vehicles?status=Available&mode={{ mode }}" class="{{ 'active' if current_filter == 'Available' }}">Available</a>
-        <a href="/vehicles?status=Sold&mode={{ mode }}" class="{{ 'active' if current_filter == 'Sold' }}">Sold</a>
-        <a href="/vehicles?status=Reserved&mode={{ mode }}" class="{{ 'active' if current_filter == 'Reserved' }}">Reserved</a>
+        <a href="{{ url_for('web.vehicles', status='All', mode=mode) }}" class="{{ 'active' if current_filter == 'All' }}">All</a>
+        <a href="{{ url_for('web.vehicles', status='Available', mode=mode) }}" class="{{ 'active' if current_filter == 'Available' }}">Available</a>
+        <a href="{{ url_for('web.vehicles', status='Sold', mode=mode) }}" class="{{ 'active' if current_filter == 'Sold' }}">Sold</a>
+        <a href="{{ url_for('web.vehicles', status='Reserved', mode=mode) }}" class="{{ 'active' if current_filter == 'Reserved' }}">Reserved</a>
     </div>
 
     {% if mode != 'view' and mode != 'delete' %}
-    <a href="/vehicles/add" class="btn btn-primary" style="margin-bottom: 15px;">+ Add Vehicle</a>
+    <a href="{{ url_for('web.add_vehicle') }}" class="btn btn-primary" style="margin-bottom: 15px;">+ Add Vehicle</a>
     {% endif %}
-    <table>
+    <div class="table-scroll"><table>
         <tr>
             <th>VIN</th>
             <th>Brand</th>
@@ -23,6 +23,7 @@
             <th>Year</th>
             <th>Miles</th>
             <th>Bought Price</th>
+            <th>Listing Price</th>
             <th>Status</th>
             {% if mode != 'view' %}
             <th>Actions</th>
@@ -35,14 +36,20 @@
             <td>{{ v.Model }}</td>
             <td>{{ v.Type }}</td>
             <td>{{ v.Year }}</td>
-            <td>{{ "{:,}".format(v.Miles) }}</td>
-            <td>${{ "{:,.2f}".format(v.BoughtPrice) }}</td>
+            <td>{{ v.Miles|number }}</td>
+            <td>{{ v.BoughtPrice|money }}</td>
+            <td>{{ v.ListingPrice|money }}</td>
             <td><span class="badge badge-{{ v.InventoryStatus|lower }}">{{ v.InventoryStatus }}</span></td>
             {% if mode != 'view' %}
-            <td><a href="/vehicles/delete/{{ v.VIN }}" class="btn btn-danger" onclick="return confirm('Delete this vehicle?')">Delete</a></td>
+            <td><form method="POST" action="{{ url_for('web.delete_vehicle') }}" class="delete-form" data-confirm="Delete this record?">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="vin" value="{{ v.VIN }}">
+                <button type="submit" class="btn btn-danger">Delete</button>
+            </form></td>
             {% endif %}
         </tr>
         {% endfor %}
-    </table>
+    </table></div>
+    {% if not vehicles %}<p class="subtle">No records found.</p>{% endif %}
+    {% include "pagination.html" %}
 </div>
 {% endblock %}

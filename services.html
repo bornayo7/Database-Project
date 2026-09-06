@@ -3,15 +3,15 @@
 <div class="card">
     <h2>Service Records</h2>
     {% if mode != 'view' and mode != 'delete' %}
-    <a href="/services/add" class="btn btn-primary" style="margin-bottom: 15px;">+ Add Service Record</a>
+    <a href="{{ url_for('web.add_service') }}" class="btn btn-primary" style="margin-bottom: 15px;">+ Add Service Record</a>
     {% endif %}
-    <table>
+    <div class="table-scroll"><table>
         <tr>
             <th>Service ID</th>
             <th>Date</th>
             <th>Service Done</th>
             <th>Vehicle</th>
-            <th>Mechanic</th>
+            <th>Employee</th>
             <th>Cost</th>
             {% if mode != 'view' %}
             <th>Actions</th>
@@ -24,12 +24,17 @@
             <td>{{ r.ServiceDone }}</td>
             <td>{{ r.Brand }} {{ r.Model }}</td>
             <td>{{ r.EmployeeName }}</td>
-            <td>${{ "{:,.2f}".format(r.Cost) }}</td>
+            <td>{{ r.Cost|money }}</td>
             {% if mode != 'view' %}
-            <td><a href="/services/delete/{{ r.ServiceID }}" class="btn btn-danger" onclick="return confirm('Delete this record?')">Delete</a></td>
+            <td><form method="POST" action="{{ url_for('web.delete_service', id=r.ServiceID) }}" class="delete-form" data-confirm="Delete this record?">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-danger">Delete</button>
+            </form></td>
             {% endif %}
         </tr>
         {% endfor %}
-    </table>
+    </table></div>
+    {% if not records %}<p class="subtle">No records found.</p>{% endif %}
+    {% include "pagination.html" %}
 </div>
 {% endblock %}
