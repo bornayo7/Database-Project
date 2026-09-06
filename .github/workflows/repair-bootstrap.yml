@@ -1,0 +1,25 @@
+name: Repair bootstrap
+on:
+  push:
+    branches: [fix/audit-reliability-20260906]
+    paths: [.github/workflows/repair-bootstrap.yml]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Prepare public source and offline test dependencies
+        run: |
+          mkdir -p repair-bundle/wheels
+          git archive HEAD > repair-bundle/repository.tar
+          python -m pip download --only-binary=:all: --dest repair-bundle/wheels Flask==3.1.3 mysql-connector-python==9.7.0 pytest==9.0.2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: repair-environment
+          path: repair-bundle/
+          retention-days: 1
