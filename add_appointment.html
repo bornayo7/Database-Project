@@ -3,49 +3,46 @@
 <div class="card">
     <h2>Add New Appointment</h2>
     <form method="POST">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        {% if error %}<p class="flash-error" role="alert">{{ error }}</p>{% endif %}
         <div class="form-row">
             <div class="form-group">
-                <label>Appointment ID</label>
-                <input name="id" type="number" min="1" required>
+                <label for="date">Appointment Date</label>
+                <input name="date" type="date" required id="date" value="{{ values.get('date', '') }}">
             </div>
             <div class="form-group">
-                <label>Appointment Date</label>
-                <input name="date" type="date" required>
-            </div>
-            <div class="form-group">
-                <label>Status</label>
-                <select name="status" required>
-                    <option>Scheduled</option>
-                    <option>Completed</option>
-                    <option>Cancelled</option>
-                    <option>Delayed</option>
+                <label for="status">Status</label>
+                <select name="status" required id="status">
+                    {% for option in appointment_statuses %}
+                    <option{% if values.get('status') == option %} selected{% endif %}>{{ option }}</option>
+                    {% endfor %}
                 </select>
             </div>
         </div>
         <div class="form-row">
             <div class="form-group">
-                <label>Customer ID</label>
-                <input name="customer_id" type="number" min="1" required>
+                <label for="customer_id">Customer ID</label>
+                <input name="customer_id" type="number" min="1" required id="customer_id" value="{{ values.get('customer_id', '') }}">
             </div>
             <div class="form-group">
-                <label>Employee ID</label>
-                <input name="employee_id" type="number" min="1" required>
+                <label for="employee_id">Employee ID</label>
+                <input name="employee_id" type="number" min="1" required id="employee_id" value="{{ values.get('employee_id', '') }}">
             </div>
             <div class="form-group">
-                <label>VIN</label>
-                <input name="vin" type="text" required>
+                <label for="vin">VIN</label>
+                <input name="vin" type="text" required id="vin" value="{{ values.get('vin', '') }}">
             </div>
         </div>
         <div class="form-row">
             <div class="form-group">
-                <label>Dealership ID</label>
-                <input name="dealership_id" type="number" min="1" required>
+                <label for="dealership_id">Dealership ID</label>
+                <input name="dealership_id" type="number" min="1" required id="dealership_id" value="{{ values.get('dealership_id', '') }}">
             </div>
             <div class="form-group"></div>
             <div class="form-group"></div>
         </div>
         <button type="submit" class="btn btn-success">Add Appointment</button>
-        <a href="/appointments" class="btn btn-primary">Cancel</a>
+        <a href="{{ url_for('web.appointments') }}" class="btn btn-primary">Cancel</a>
     </form>
 </div>
 {% endblock %}

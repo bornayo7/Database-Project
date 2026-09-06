@@ -1,23 +1,12 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="card">
-    <h2>Diagrams</h2>
-    <p class="page-lead">Embedded previews of the two project diagrams from Google Drive.</p>
-    <div class="diagram-grid">
-        <div class="diagram-panel">
-            <h3>Supporting Schema</h3>
-            <div class="diagram-frame-wrap">
-                <iframe class="diagram-frame" src="{{ diagram_preview_url }}" title="Supporting Schema Diagram" loading="lazy"></iframe>
-            </div>
-        </div>
-        <div class="diagram-panel">
-            <h3>ER Diagram</h3>
-            <div class="diagram-frame-wrap">
-                <img class="diagram-image" src="{{ url_for('er_diagram_image') }}" alt="ER Diagram">
-            </div>
-        </div>
-    </div>
-    <p class="subtle">If a preview does not load locally, open the original Drive files: <a href="{{ diagram_url }}" target="_blank" rel="noopener noreferrer">Supporting Schema</a> and <a href="{{ er_diagram_url }}" target="_blank" rel="noopener noreferrer">ER Diagram</a>.</p>
+    <h2>Database schema</h2>
+    <p class="page-lead">Tables and relationships below are read from the connected database. schema.sql is the canonical initialization file.</p>
+    <details><summary>Original conceptual ER diagram (historical reference)</summary>
+        <img class="diagram-image" src="{{ url_for('web.er_diagram_image') }}" alt="Original conceptual ER diagram">
+        <p class="subtle">This legacy diagram and CarDealership.mwb are not migration scripts and may differ from the live schema.</p>
+    </details>
 </div>
 
 <div class="card">

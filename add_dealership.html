@@ -3,33 +3,31 @@
 <div class="card">
     <h2>Add New Dealership</h2>
     <form method="POST">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        {% if error %}<p class="flash-error" role="alert">{{ error }}</p>{% endif %}
         <div class="form-row">
             <div class="form-group">
-                <label>Dealership ID</label>
-                <input name="id" type="number" min="1" required>
+                <label for="address">Address</label>
+                <input name="address" type="text" required id="address" value="{{ values.get('address', '') }}">
             </div>
             <div class="form-group">
-                <label>Address</label>
-                <input name="address" type="text" required>
-            </div>
-            <div class="form-group">
-                <label>City</label>
-                <input name="city" type="text" required>
+                <label for="city">City</label>
+                <input name="city" type="text" required id="city" value="{{ values.get('city', '') }}">
             </div>
         </div>
         <div class="form-row">
             <div class="form-group">
-                <label>State</label>
-                <input name="state" type="text" maxlength="2" placeholder="TX" required>
+                <label for="state">State</label>
+                <input name="state" type="text" maxlength="2" placeholder="TX" required id="state" value="{{ values.get('state', '') }}">
             </div>
             <div class="form-group">
-                <label>Zip Code</label>
-                <input name="zipcode" type="text" maxlength="10" placeholder="75201" required>
+                <label for="zipcode">Zip Code</label>
+                <input name="zipcode" type="text" maxlength="10" placeholder="75201" required id="zipcode" value="{{ values.get('zipcode', '') }}">
             </div>
             <div class="form-group"></div>
         </div>
         <button type="submit" class="btn btn-success">Add Dealership</button>
-        <a href="/dealerships" class="btn btn-primary">Cancel</a>
+        <a href="{{ url_for('web.dealerships') }}" class="btn btn-primary">Cancel</a>
     </form>
 </div>
 {% endblock %}

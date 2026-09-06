@@ -1,13 +1,15 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Car Dealership</title>
     <style>
         /* ==============================
            Design tokens
            ============================== */
         :root {
-            /* Primary — sophisticated slate */
+            /* Primary - sophisticated slate */
             --primary-900: #0b1220;
             --primary-800: #1e293b;
             --primary-700: #334155;
@@ -16,27 +18,27 @@
             --primary-100: #e2e8f0;
             --primary-50:  #f1f5f9;
 
-            /* Brand — electric blue (CTAs, focus, links) */
+            /* Brand - electric blue (CTAs, focus, links) */
             --brand-700: #1d4ed8;
             --brand-600: #2563eb;
             --brand-500: #3b82f6;
             --brand-400: #60a5fa;
             --brand-100: #dbeafe;
 
-            /* Gold — for revenue / value highlights */
+            /* Gold - for revenue / value highlights */
             --gold-700: #b45309;
             --gold-600: #d97706;
             --gold-500: #f59e0b;
             --gold-400: #fbbf24;
             --gold-100: #fef3c7;
 
-            /* Success — green */
+            /* Success - green */
             --success-700: #047857;
             --success-600: #059669;
             --success-500: #10b981;
             --success-100: #d1fae5;
 
-            /* Danger — red */
+            /* Danger - red */
             --danger-700: #b91c1c;
             --danger-600: #dc2626;
             --danger-500: #ef4444;
@@ -148,7 +150,7 @@
         }
 
         /* ==============================
-           Dashboard stats — color-coded accents
+           Dashboard stats - color-coded accents
            ============================== */
         .stats {
             display: grid;
@@ -225,7 +227,7 @@
         tr:last-child td { border-bottom: none; }
 
         /* ==============================
-           Buttons — distinct semantic colors
+           Buttons - distinct semantic colors
            ============================== */
         .btn {
             display: inline-block;
@@ -339,7 +341,7 @@
         }
 
         /* ==============================
-           Action cards — color-coded by intent
+           Action cards - color-coded by intent
            ============================== */
         .action-card {
             background: linear-gradient(160deg, var(--primary-800) 0%, var(--primary-900) 100%);
@@ -434,7 +436,7 @@
         }
 
         /* ==============================
-           Status badges — semantic colors
+           Status badges - semantic colors
            ============================== */
         .badge {
             display: inline-block;
@@ -470,7 +472,7 @@
         }
 
         /* ==============================
-           Metric strip — slate body + gold accent
+           Metric strip - slate body + gold accent
            ============================== */
         .metric-strip {
             display: inline-flex;
@@ -692,19 +694,32 @@
             .card { padding: 20px; }
             .diagram-frame { min-height: 420px; }
         }
+        .delete-form { display: inline-block; }
+        .delete-form select { width: auto; display: block; margin-bottom: 8px; }
+        .logout-form { margin-left: auto; }
+        .pagination { position: static; background: transparent; color: var(--text); box-shadow: none; border: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin-top: 20px; }
+        nav.pagination a { color: var(--brand-700); background: white; }
+        .flash-warning { background: var(--gold-100); padding: 12px; }
+        @media (max-width: 600px) { .dashboard-actions, .stats { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
     <nav>
-        <a href="/" class="brand">Car Dealership</a>
-        <a href="/customers?mode=view">Customers</a>
-        <a href="/vehicles?mode=view">Vehicles</a>
-        <a href="/employees?mode=view">Employees</a>
-        <a href="/dealerships?mode=view">Dealerships</a>
-        <a href="/sales?mode=view">Sales</a>
-        <a href="/services?mode=view">Service Records</a>
-        <a href="/appointments?mode=view">Appointments</a>
-        <a href="/supporting-schema">Supporting Schema</a>
+        {% if session.get("user") %}
+        <a href="{{ url_for('web.home') }}" class="brand">Car Dealership</a>
+        <a href="{{ url_for('web.customers', mode='view') }}">Customers</a>
+        <a href="{{ url_for('web.vehicles', mode='view') }}">Vehicles</a>
+        <a href="{{ url_for('web.employees', mode='view') }}">Employees</a>
+        <a href="{{ url_for('web.dealerships', mode='view') }}">Dealerships</a>
+        <a href="{{ url_for('web.sales', mode='view') }}">Sales</a>
+        <a href="{{ url_for('web.services', mode='view') }}">Service Records</a>
+        <a href="{{ url_for('web.appointments', mode='view') }}">Appointments</a>
+        <a href="{{ url_for('web.supporting_schema') }}">Supporting Schema</a>
+        <form method="POST" action="{{ url_for('logout') }}" class="logout-form">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-secondary">Sign out</button>
+        </form>
+        {% else %}<span class="brand">Car Dealership</span>{% endif %}
     </nav>
 
     <div class="container">
@@ -716,5 +731,6 @@
 
         {% block content %}{% endblock %}
     </div>
+    <script src="{{ url_for('static', filename='app.js') }}" defer></script>
 </body>
 </html>

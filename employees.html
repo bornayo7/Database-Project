@@ -3,9 +3,9 @@
 <div class="card">
     <h2>Employees</h2>
     {% if mode != 'view' and mode != 'delete' %}
-    <a href="/employees/add" class="btn btn-primary" style="margin-bottom: 15px;">+ Add Employee</a>
+    <a href="{{ url_for('web.add_employee') }}" class="btn btn-primary" style="margin-bottom: 15px;">+ Add Employee</a>
     {% endif %}
-    <table>
+    <div class="table-scroll"><table>
         <tr>
             <th>ID</th>
             <th>Name</th>
@@ -26,10 +26,15 @@
             <td>{{ e.Email }}</td>
             <td>{{ e.DealershipCity }}</td>
             {% if mode != 'view' %}
-            <td><a href="/employees/delete/{{ e.EmployeeID }}" class="btn btn-danger" onclick="return confirm('Delete this employee?')">Delete</a></td>
+            <td><form method="POST" action="{{ url_for('web.delete_employee', id=e.EmployeeID) }}" class="delete-form" data-confirm="Delete this record?">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-danger">Delete</button>
+            </form></td>
             {% endif %}
         </tr>
         {% endfor %}
-    </table>
+    </table></div>
+    {% if not employees %}<p class="subtle">No records found.</p>{% endif %}
+    {% include "pagination.html" %}
 </div>
 {% endblock %}

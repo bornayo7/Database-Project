@@ -4,12 +4,12 @@
     <h2>Sales Transactions</h2>
     <div class="metric-strip">
         <span class="metric-label">Total Revenue</span>
-        <span class="metric-value">${{ "{:,.2f}".format(total_revenue) }}</span>
+        <span class="metric-value">{{ total_revenue|money }}</span>
     </div>
     {% if mode != 'view' and mode != 'delete' %}
-    <a href="/sales/add" class="btn btn-primary" style="margin-bottom: 15px;">+ Add Sale</a>
+    <a href="{{ url_for('web.add_sale') }}" class="btn btn-primary" style="margin-bottom: 15px;">+ Add Sale</a>
     {% endif %}
-    <table>
+    <div class="table-scroll"><table>
         <tr>
             <th>Sale ID</th>
             <th>Date</th>
@@ -28,12 +28,17 @@
             <td>{{ s.CustomerName }}</td>
             <td>{{ s.EmployeeName }}</td>
             <td>{{ s.Brand }} {{ s.Model }}</td>
-            <td>${{ "{:,.2f}".format(s.SoldPrice) }}</td>
+            <td>{{ s.SoldPrice|money }}</td>
             {% if mode != 'view' %}
-            <td><a href="/sales/delete/{{ s.SaleID }}" class="btn btn-danger" onclick="return confirm('Delete this sale?')">Delete</a></td>
+            <td><form method="POST" action="{{ url_for('web.delete_sale', id=s.SaleID) }}" class="delete-form" data-confirm="Delete this record?">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">{% if s.RestockStatus is none %}<label for="restock-{{ s.SaleID }}">Return vehicle to</label><select name="restock_status" id="restock-{{ s.SaleID }}" required><option value="">Choose status</option><option>Available</option><option>Reserved</option></select>{% endif %}
+                <button type="submit" class="btn btn-danger">Delete</button>
+            </form></td>
             {% endif %}
         </tr>
         {% endfor %}
-    </table>
+    </table></div>
+    {% if not sales %}<p class="subtle">No records found.</p>{% endif %}
+    {% include "pagination.html" %}
 </div>
 {% endblock %}
