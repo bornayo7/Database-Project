@@ -1,610 +1,318 @@
+"""Server-rendered dealership application. Run through create_app(), never import-time I/O."""
+from datetime import date, timedelta
+import hashlib
+import hmac
+import os
 from pathlib import Path
+import secrets
 
-from flask import Flask, render_template, request, redirect, url_for, flash, send_file
+from flask import (Blueprint, Flask, abort, current_app, flash, redirect, render_template,
+                   request, send_file, session, url_for)
 import mysql.connector
+from werkzeug.security import check_password_hash
 
-app = Flask(__name__, template_folder='.')
-app.secret_key = "dealership123"  # needed for flash messages
-PROJECT_ROOT = Path(__file__).resolve().parent
+import db
+from validation import (APPOINTMENT_STATUSES, INVENTORY_STATUSES, POSITIONS, SERVICES,
+                        VEHICLE_TYPES, ValidationError, choice, integer, text, values_for)
 
-# ============================================================
-# DATABASE CONNECTION
-# ============================================================
-def get_db():
-    return mysql.connector.connect(
-        host="localhost",
-        port=3306,
-        user="root",
-        password="",
-        database="cardealership"
-    )
+ROOT = Path(__file__).resolve().parent
+web = Blueprint('web', __name__)
+# Identifiers here are code-owned, never supplied by a request.
+ENTITIES = {
+    'customers': ('Customer', 'CustomerID', 'customer', 'CustomerName,CreditScore,Email,PhoneNumber,Loan'),
+    'vehicles': ('Vehicle', 'VIN', 'vehicle', 'VIN,Model,Type,Year,Brand,DealershipID,Miles,BoughtPrice,ListingPrice,InventoryStatus'),
+    'employees': ('Employee', 'EmployeeID', 'employee', 'EmployeeName,PhoneNumber,Email,Position,DealershipID'),
+    'dealerships': ('Dealership', 'DealershipID', 'dealership', 'Address,City,State,ZipCode'),
+    'sales': ('SaleTransaction', 'SaleID', 'sale', 'SaleDate,CustomerID,EmployeeID,VIN,SoldPrice'),
+    'services': ('ServiceRecord', 'ServiceID', 'service', 'VIN,Cost,ServiceDate,ServiceDone,EmployeeID'),
+    'appointments': ('ServiceAppointment', 'AppointmentID', 'appointment', 'EmployeeID,CustomerID,VIN,Status,AppointmentDate,DealershipID'),
+}
+LIST_SQL = {
+    'customers': 'SELECT * FROM Customer ORDER BY CustomerID',
+    'vehicles': 'SELECT * FROM Vehicle {where} ORDER BY VIN',
+    'employees': '''SELECT e.*, d.City AS DealershipCity FROM Employee e
+        LEFT JOIN Dealership d ON e.DealershipID=d.DealershipID ORDER BY e.EmployeeID''',
+    'dealerships': '''SELECT d.*, COALESCE(v.CarCount,0) AS CarCount FROM Dealership d
+        LEFT JOIN (SELECT DealershipID, COUNT(*) AS CarCount FROM Vehicle
+        WHERE InventoryStatus IN ('Available','Reserved') GROUP BY DealershipID) v
+        ON v.DealershipID=d.DealershipID ORDER BY d.DealershipID''',
+    'sales': '''SELECT s.*, c.CustomerName, e.EmployeeName, v.Brand, v.Model,
+        v.BoughtPrice, s.SoldPrice-v.BoughtPrice AS Profit FROM SaleTransaction s
+        LEFT JOIN Customer c ON s.CustomerID=c.CustomerID
+        LEFT JOIN Employee e ON s.EmployeeID=e.EmployeeID
+        LEFT JOIN Vehicle v ON s.VIN=v.VIN ORDER BY s.SaleDate DESC, s.SaleID DESC''',
+    'services': '''SELECT sr.*, v.Brand, v.Model, e.EmployeeName FROM ServiceRecord sr
+        LEFT JOIN Vehicle v ON sr.VIN=v.VIN LEFT JOIN Employee e ON sr.EmployeeID=e.EmployeeID
+        ORDER BY sr.ServiceDate DESC, sr.ServiceID DESC''',
+    'appointments': '''SELECT sa.*, c.CustomerName, e.EmployeeName, v.Brand, v.Model, d.City AS DealershipCity
+        FROM ServiceAppointment sa LEFT JOIN Customer c ON sa.CustomerID=c.CustomerID
+        LEFT JOIN Employee e ON sa.EmployeeID=e.EmployeeID LEFT JOIN Vehicle v ON sa.VIN=v.VIN
+        LEFT JOIN Dealership d ON sa.DealershipID=d.DealershipID
+        ORDER BY sa.AppointmentDate DESC, sa.AppointmentID DESC''',
+}
 
 
-def get_supporting_schema():
-    return [
-        {
-            'display_name': 'Dealership',
-            'table_name': 'Dealership',
-            'description': 'The dealership that has used car inventory in our used cars dealership mini world.',
-            'primary_key': 'DealershipID',
-            'foreign_keys': [],
-            'columns': [
-                {'name': 'DealershipID', 'type': 'INT', 'role': 'Primary key', 'domain': 'Any integer > 0'},
-                {'name': 'Address', 'type': 'VARCHAR(255)', 'role': 'Attribute', 'domain': 'Any string'},
-                {'name': 'City', 'type': 'VARCHAR(100)', 'role': 'Attribute', 'domain': 'Any string'},
-                {'name': 'State', 'type': 'VARCHAR(2)', 'role': 'Attribute', 'domain': 'Any valid US state abbreviation'},
-                {'name': 'ZipCode', 'type': 'VARCHAR(10)', 'role': 'Attribute', 'domain': 'Any valid ZIP code'},
-            ],
-        },
-        {
-            'display_name': 'Vehicle (Car)',
-            'table_name': 'Vehicle',
-            'description': 'A car that is stored in our system, along with its dealership location and defining characteristics.',
-            'primary_key': 'VIN',
-            'foreign_keys': [
-                {'column': 'DealershipID', 'references': 'Dealership.DealershipID'},
-            ],
-            'columns': [
-                {'name': 'VIN', 'type': 'VARCHAR(50)', 'role': 'Primary key', 'domain': 'Any string'},
-                {'name': 'Model', 'type': 'VARCHAR(100)', 'role': 'Attribute', 'domain': 'Any string'},
-                {'name': 'Type', 'type': 'VARCHAR(50)', 'role': 'Attribute', 'domain': 'SUV, Sedan, Truck, Coupe, Hatchback, Wagon'},
-                {'name': 'Year', 'type': 'INT', 'role': 'Attribute', 'domain': '1886-2027'},
-                {'name': 'Brand', 'type': 'VARCHAR(100)', 'role': 'Attribute', 'domain': 'Any string'},
-                {'name': 'DealershipID', 'type': 'INT', 'role': 'Foreign key', 'domain': 'Any integer > 0'},
-                {'name': 'Miles', 'type': 'INT', 'role': 'Attribute', 'domain': 'Any integer >= 0'},
-                {'name': 'BoughtPrice', 'type': 'DECIMAL(10, 2)', 'role': 'Attribute', 'domain': 'Any decimal > 0'},
-                {'name': 'ListingPrice', 'type': 'DECIMAL(10, 2)', 'role': 'Attribute', 'domain': 'Any decimal > 0'},
-                {'name': 'InventoryStatus', 'type': 'VARCHAR(20)', 'role': 'Attribute', 'domain': 'Available, Sold, Reserved'},
-            ],
-        },
-        {
-            'display_name': 'Customer',
-            'table_name': 'Customer',
-            'description': 'A customer that buys used cars in our used car dealership.',
-            'primary_key': 'CustomerID',
-            'foreign_keys': [],
-            'columns': [
-                {'name': 'CustomerID', 'type': 'INT', 'role': 'Primary key', 'domain': 'Any integer > 0'},
-                {'name': 'CustomerName', 'type': 'VARCHAR(100)', 'role': 'Attribute', 'domain': 'Any string'},
-                {'name': 'CreditScore', 'type': 'INT', 'role': 'Attribute', 'domain': 'Any integer 300-850'},
-                {'name': 'Email', 'type': 'VARCHAR(255)', 'role': 'Attribute', 'domain': 'Any valid email'},
-                {'name': 'PhoneNumber', 'type': 'VARCHAR(20)', 'role': 'Attribute', 'domain': 'Any valid phone number'},
-                {'name': 'Loan', 'type': 'DECIMAL(10, 2)', 'role': 'Attribute', 'domain': 'Any decimal > 0 or NULL'},
-            ],
-        },
-        {
-            'display_name': 'Employee',
-            'table_name': 'Employee',
-            'description': 'An employee who tries to sell a used car in our used car dealership mini world.',
-            'primary_key': 'EmployeeID',
-            'foreign_keys': [
-                {'column': 'DealershipID', 'references': 'Dealership.DealershipID'},
-            ],
-            'columns': [
-                {'name': 'EmployeeID', 'type': 'INT', 'role': 'Primary key', 'domain': 'Any integer > 0'},
-                {'name': 'EmployeeName', 'type': 'VARCHAR(100)', 'role': 'Attribute', 'domain': 'Any string'},
-                {'name': 'PhoneNumber', 'type': 'VARCHAR(20)', 'role': 'Attribute', 'domain': 'Any valid phone number'},
-                {'name': 'Email', 'type': 'VARCHAR(255)', 'role': 'Attribute', 'domain': 'Any valid email'},
-                {'name': 'Position', 'type': 'VARCHAR(50)', 'role': 'Attribute', 'domain': 'Salesperson, Mechanic, Manager, CEO, Security, Janitor'},
-                {'name': 'DealershipID', 'type': 'INT', 'role': 'Foreign key', 'domain': 'Any integer > 0'},
-            ],
-        },
-        {
-            'display_name': 'SaleTransaction (Transaction)',
-            'table_name': 'SaleTransaction',
-            'description': 'A transaction involving a customer, employee, and car is included in our dealership mini world.',
-            'primary_key': 'SaleID',
-            'foreign_keys': [
-                {'column': 'CustomerID', 'references': 'Customer.CustomerID'},
-                {'column': 'EmployeeID', 'references': 'Employee.EmployeeID'},
-                {'column': 'VIN', 'references': 'Vehicle.VIN'},
-            ],
-            'columns': [
-                {'name': 'SaleID', 'type': 'INT', 'role': 'Primary key', 'domain': 'Any integer > 0'},
-                {'name': 'SaleDate', 'type': 'DATE', 'role': 'Attribute', 'domain': 'Any valid date'},
-                {'name': 'CustomerID', 'type': 'INT', 'role': 'Foreign key', 'domain': 'Any integer > 0'},
-                {'name': 'EmployeeID', 'type': 'INT', 'role': 'Foreign key', 'domain': 'Any integer > 0'},
-                {'name': 'VIN', 'type': 'VARCHAR(50)', 'role': 'Foreign key', 'domain': 'Any string'},
-                {'name': 'SoldPrice', 'type': 'DECIMAL(10, 2)', 'role': 'Attribute', 'domain': 'Any decimal > 0'},
-            ],
-        },
-        {
-            'display_name': 'ServiceRecord',
-            'table_name': 'ServiceRecord',
-            'description': 'Record of service being done to used cars in the dealership mini world.',
-            'primary_key': 'ServiceID',
-            'foreign_keys': [
-                {'column': 'VIN', 'references': 'Vehicle.VIN'},
-                {'column': 'EmployeeID', 'references': 'Employee.EmployeeID'},
-            ],
-            'columns': [
-                {'name': 'ServiceID', 'type': 'INT', 'role': 'Primary key', 'domain': 'Any integer > 0'},
-                {'name': 'VIN', 'type': 'VARCHAR(50)', 'role': 'Foreign key', 'domain': 'Any string'},
-                {'name': 'Cost', 'type': 'DECIMAL(10, 2)', 'role': 'Attribute', 'domain': 'Any decimal > 0'},
-                {'name': 'ServiceDate', 'type': 'DATE', 'role': 'Attribute', 'domain': 'Any valid date'},
-                {'name': 'ServiceDone', 'type': 'VARCHAR(100)', 'role': 'Attribute', 'domain': 'Brakes, Oil Change, Tires'},
-                {'name': 'EmployeeID', 'type': 'INT', 'role': 'Foreign key', 'domain': 'Any integer > 0'},
-            ],
-        },
-        {
-            'display_name': 'ServiceAppointment',
-            'table_name': 'ServiceAppointment',
-            'description': 'Appointment record of car services done in used car dealership Mini World.',
-            'primary_key': 'AppointmentID',
-            'foreign_keys': [
-                {'column': 'EmployeeID', 'references': 'Employee.EmployeeID'},
-                {'column': 'CustomerID', 'references': 'Customer.CustomerID'},
-                {'column': 'VIN', 'references': 'Vehicle.VIN'},
-                {'column': 'DealershipID', 'references': 'Dealership.DealershipID'},
-            ],
-            'columns': [
-                {'name': 'AppointmentID', 'type': 'INT', 'role': 'Primary key', 'domain': 'Any integer > 0'},
-                {'name': 'EmployeeID', 'type': 'INT', 'role': 'Foreign key', 'domain': 'Any integer > 0'},
-                {'name': 'CustomerID', 'type': 'INT', 'role': 'Foreign key', 'domain': 'Any integer > 0'},
-                {'name': 'VIN', 'type': 'VARCHAR(50)', 'role': 'Foreign key', 'domain': 'Any string'},
-                {'name': 'Status', 'type': 'VARCHAR(20)', 'role': 'Attribute', 'domain': 'Scheduled, Completed, Cancelled, Delayed'},
-                {'name': 'AppointmentDate', 'type': 'DATE', 'role': 'Attribute', 'domain': 'Any valid date'},
-                {'name': 'DealershipID', 'type': 'INT', 'role': 'Foreign key', 'domain': 'Any integer > 0'},
-            ],
-        },
-    ]
+def csrf_token():
+    if '_csrf' not in session:
+        session['_csrf'] = secrets.token_urlsafe(32)
+    return session['_csrf']
 
-# ============================================================
-# HOME PAGE — Dashboard
-# ============================================================
-@app.route('/')
+
+def create_app(config=None):
+    app = Flask(__name__, template_folder=str(ROOT), static_folder=str(ROOT / 'static'))
+    app.config.from_mapping(db.settings())
+    app.config.update(SECRET_KEY=os.getenv('SECRET_KEY'), ADMIN_USERNAME=os.getenv('ADMIN_USERNAME'),
+                      ADMIN_PASSWORD_HASH=os.getenv('ADMIN_PASSWORD_HASH'), PAGE_SIZE=50,
+                      SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Lax',
+                      SESSION_COOKIE_SECURE=os.getenv('APP_ENV') == 'production',
+                      PERMANENT_SESSION_LIFETIME=timedelta(minutes=30), MAX_CONTENT_LENGTH=65536)
+    if config:
+        app.config.update(config)
+    if not isinstance(app.config['SECRET_KEY'], str) or len(app.config['SECRET_KEY']) < 32:
+        raise RuntimeError('Set SECRET_KEY to a random secret of at least 32 characters. See README.')
+    if not app.config['ADMIN_USERNAME'] or not app.config['ADMIN_PASSWORD_HASH']:
+        raise RuntimeError('Set ADMIN_USERNAME and ADMIN_PASSWORD_HASH. See README.')
+    password_hash = app.config['ADMIN_PASSWORD_HASH']
+    if not isinstance(password_hash, str) or not password_hash.startswith(('scrypt:', 'pbkdf2:')) or password_hash.count('$') != 2:
+        raise RuntimeError('ADMIN_PASSWORD_HASH must be a Werkzeug password hash, not a password.')
+    auth_version = hashlib.sha256(password_hash.encode()).hexdigest()
+
+    @app.before_request
+    def protect_requests():
+        if request.endpoint is None:  # Let Flask return 404/405 without entering a view.
+            return None
+        public = request.endpoint in ('login', 'static')
+        authenticated = (session.get('user') == app.config['ADMIN_USERNAME']
+                         and session.get('auth_version') == auth_version)
+        if not public and not authenticated:
+            if request.method not in ('GET', 'HEAD'):
+                abort(401, description='Sign in before changing records.')
+            return redirect(url_for('login'))
+        if request.method not in ('GET', 'HEAD', 'OPTIONS'):
+            supplied = request.form.get('_csrf', '')
+            expected = session.get('_csrf', '')
+            if not expected or not hmac.compare_digest(supplied.encode(), expected.encode()):
+                abort(400, description='The form expired or is invalid. Reload the page and try again.')
+
+    @app.after_request
+    def secure_response(response):
+        response.headers['Cache-Control'] = 'no-store'
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+        response.headers['Referrer-Policy'] = 'same-origin'
+        response.headers['Content-Security-Policy'] = (
+            "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; "
+            "img-src 'self'; frame-src https://drive.google.com; form-action 'self'; base-uri 'self'; frame-ancestors 'self'")
+        return response
+
+    @app.route('/login', methods=['GET', 'POST'])
+    def login():
+        if request.method == 'POST':
+            username = request.form.get('username', '')
+            password = request.form.get('password', '')
+            # Always check a bounded password to avoid revealing which username matched by hash timing.
+            valid = len(password) <= 256 and check_password_hash(password_hash, password)
+            if not (hmac.compare_digest(username.encode(), app.config['ADMIN_USERNAME'].encode()) and valid):
+                return render_template('login.html', error='Invalid username or password.'), 401
+            session.clear()
+            session['user'] = app.config['ADMIN_USERNAME']
+            session['auth_version'] = auth_version
+            session.permanent = True
+            csrf_token()  # Rotate the token at the authentication boundary.
+            return redirect(url_for('web.home'), code=303)
+        return render_template('login.html')
+
+    @app.post('/logout')
+    def logout():
+        session.clear()
+        return redirect(url_for('login'), code=303)
+
+    @app.errorhandler(mysql.connector.Error)
+    def database_error(error):
+        app.logger.warning('Database operation failed (errno=%s)', error.errno)
+        return render_template('error.html', message='Database unavailable or schema not initialized. Check configuration and README.', code=503), 503
+
+    @app.errorhandler(ValidationError)
+    def validation_error(error):
+        return render_template('error.html', message=str(error), code=400), 400
+
+    for code in (400, 401, 403, 404, 405, 409, 413, 500):
+        def http_error(error):
+            message = error.description if error.code != 500 else 'An unexpected error occurred. Please try again.'
+            return render_template('error.html', message=message, code=error.code), error.code
+        app.register_error_handler(code, http_error)
+
+    app.jinja_env.globals.update(csrf_token=csrf_token)
+    app.jinja_env.filters['money'] = lambda value: 'Not recorded' if value is None else f'${value:,.2f}'
+    app.jinja_env.filters['number'] = lambda value: 'Not recorded' if value is None else f'{value:,}'
+
+    @app.context_processor
+    def form_context():
+        return dict(values=request.form, vehicle_types=VEHICLE_TYPES, positions=POSITIONS,
+                    appointment_statuses=APPOINTMENT_STATUSES, service_types=SERVICES, max_year=date.today().year + 1)
+
+    app.register_blueprint(web)
+    return app
+
+
+@web.get('/')
 def home():
-    db = get_db()
-    cursor = db.cursor(dictionary=True)
+    with db.cursor() as cur:
+        counts = {}
+        for entity, name in [('customers', 'customer'), ('vehicles', 'vehicle'), ('employees', 'employee'), ('sales', 'sale')]:
+            cur.execute(f'SELECT COUNT(*) AS count FROM {ENTITIES[entity][0]}')
+            counts[name + '_count'] = cur.fetchone()['count']
+        cur.execute('SELECT COALESCE(SUM(SoldPrice),0) AS total FROM SaleTransaction')
+        counts['total_revenue'] = cur.fetchone()['total']
+    return render_template('home.html', **counts)
 
-    # Get counts for dashboard
-    cursor.execute("SELECT COUNT(*) AS count FROM Customer")
-    customer_count = cursor.fetchone()['count']
 
-    cursor.execute("SELECT COUNT(*) AS count FROM Vehicle")
-    vehicle_count = cursor.fetchone()['count']
-
-    cursor.execute("SELECT COUNT(*) AS count FROM Employee")
-    employee_count = cursor.fetchone()['count']
-
-    cursor.execute("SELECT COUNT(*) AS count FROM SaleTransaction")
-    sale_count = cursor.fetchone()['count']
-
-    cursor.execute("SELECT COALESCE(SUM(SoldPrice), 0) AS total FROM SaleTransaction")
-    total_revenue = cursor.fetchone()['total']
-
-    db.close()
-    return render_template('home.html',
-        customer_count=customer_count,
-        vehicle_count=vehicle_count,
-        employee_count=employee_count,
-        sale_count=sale_count,
-        total_revenue=total_revenue
-    )
-
-# ============================================================
-# ACTION CHOOSER
-# ============================================================
-@app.route('/action/<action>')
+@web.get('/action/<action>')
 def action_choose(action):
+    if action not in ('add', 'delete', 'view'):
+        abort(404)
     return render_template('action_choose.html', action=action)
 
 
-@app.route('/supporting-schema')
+def list_records(entity):
+    mode = request.args.get('mode', 'full')
+    if mode not in ('full', 'view', 'delete'):
+        abort(400, description='Invalid display mode.')
+    page = integer({'page': request.args.get('page', '1')}, 'page', 1, 1000000)
+    limit = current_app.config['PAGE_SIZE']
+    where, params = '', ()
+    status = request.args.get('status', 'All')
+    if entity == 'vehicles':
+        if status not in ('All', *INVENTORY_STATUSES):
+            abort(400, description='Invalid inventory status.')
+        if status != 'All':
+            where, params = 'WHERE InventoryStatus=%s', (status,)
+    with db.cursor() as cur:
+        cur.execute(f'SELECT COUNT(*) AS count FROM {ENTITIES[entity][0]} {where}', params)
+        total_rows = cur.fetchone()['count']
+        cur.execute(LIST_SQL[entity].format(where=where) + ' LIMIT %s OFFSET %s', params + (limit, (page - 1) * limit))
+        rows = cur.fetchall()
+        revenue = None
+        if entity == 'sales':
+            cur.execute('SELECT COALESCE(SUM(SoldPrice),0) AS total FROM SaleTransaction')
+            revenue = cur.fetchone()['total']
+    pages = max(1, (total_rows + limit - 1) // limit)
+    if page > pages:
+        abort(404, description='Page not found.')
+    args = {'mode': mode}
+    if entity == 'vehicles':
+        args['status'] = status
+    pagination = dict(page=page, pages=pages, total=total_rows,
+                      previous=url_for('web.' + entity, page=page-1, **args) if page > 1 else None,
+                      next=url_for('web.' + entity, page=page+1, **args) if page < pages else None)
+    key = 'records' if entity == 'services' else entity
+    return render_template(entity + '.html', **{key: rows}, mode=mode, current_filter=status,
+                           pagination=pagination, total_revenue=revenue)
+
+
+def insert_record(cur, entity, values, extra_columns='', extra_values=()):
+    table, _, _, columns = ENTITIES[entity]
+    columns += extra_columns
+    data = values + extra_values
+    cur.execute(f'INSERT INTO {table} ({columns}) VALUES ({",".join(["%s"] * len(data))})', data)
+    return cur.lastrowid
+
+
+def add_record(entity):
+    template = f'add_{ENTITIES[entity][2]}.html'
+    if request.method == 'GET':
+        return render_template(template)
+    try:
+        values = values_for(entity, request.form)
+        with db.cursor(write=True) as cur:
+            if entity == 'sales':
+                vin = values[3]
+                cur.execute('SELECT InventoryStatus FROM Vehicle WHERE VIN=%s FOR UPDATE', (vin,))
+                vehicle = cur.fetchone()
+                if vehicle is None:
+                    raise ValidationError('Vehicle not found. Enter an existing VIN.')
+                if vehicle['InventoryStatus'] not in ('Available', 'Reserved'):
+                    abort(409, description='This vehicle is already sold or unavailable.')
+                record_id = insert_record(cur, entity, values, ',RestockStatus', (vehicle['InventoryStatus'],))
+                cur.execute("UPDATE Vehicle SET InventoryStatus='Sold' WHERE VIN=%s", (vin,))
+            else:
+                record_id = insert_record(cur, entity, values)
+    except ValidationError as error:
+        return render_template(template, error=str(error)), 400
+    except mysql.connector.IntegrityError as error:
+        current_app.logger.info('Creation rejected (errno=%s)', error.errno)
+        return render_template(template, error='Record conflicts with existing data. Check the VIN, linked IDs and field values.'), 409
+    flash(f'Added {ENTITIES[entity][2]} successfully' + (f' (ID {record_id}).' if entity != 'vehicles' else '.'), 'success')
+    return redirect(url_for('web.' + entity), code=303)
+
+
+def delete_record(entity, id=None):
+    table, pk, singular, _ = ENTITIES[entity]
+    identifier = text(request.form, 'vin', 50) if entity == 'vehicles' else id
+    try:
+        with db.cursor(write=True) as cur:
+            if entity == 'sales':
+                cur.execute('SELECT VIN FROM SaleTransaction WHERE SaleID=%s', (identifier,))
+                sale = cur.fetchone()
+                if sale is None:
+                    abort(404, description='Sale not found. It may already have been deleted.')
+                # Lock in the same order as sale creation: vehicle, then sale.
+                cur.execute('SELECT VIN FROM Vehicle WHERE VIN=%s FOR UPDATE', (sale['VIN'],))
+                cur.fetchone()
+                cur.execute('SELECT RestockStatus FROM SaleTransaction WHERE SaleID=%s FOR UPDATE', (identifier,))
+                current = cur.fetchone()
+                if current is None:
+                    abort(404, description='Sale not found. It may already have been deleted.')
+                status = current['RestockStatus']
+                if status is None:
+                    status = choice(request.form, 'restock_status', ('Available', 'Reserved'))
+                cur.execute('DELETE FROM SaleTransaction WHERE SaleID=%s', (identifier,))
+                cur.execute('UPDATE Vehicle SET InventoryStatus=%s WHERE VIN=%s', (status, sale['VIN']))
+            else:
+                cur.execute(f'DELETE FROM {table} WHERE {pk}=%s', (identifier,))
+                if cur.rowcount == 0:
+                    abort(404, description='Record not found. It may already have been deleted.')
+    except mysql.connector.IntegrityError as error:
+        current_app.logger.info('Deletion rejected (errno=%s)', error.errno)
+        abort(409, description='This record is referenced by other records and cannot be deleted.')
+    flash(f'{singular.capitalize()} deleted.', 'success')
+    return redirect(url_for('web.' + entity), code=303)
+
+
+for entity, (_, _, singular, _) in ENTITIES.items():
+    web.add_url_rule('/' + entity, endpoint=entity, view_func=list_records, defaults={'entity': entity}, methods=['GET'])
+    web.add_url_rule('/' + entity + '/add', endpoint='add_' + singular, view_func=add_record,
+                     defaults={'entity': entity}, methods=['GET', 'POST'])
+    suffix = '' if entity == 'vehicles' else '/<int:id>'
+    web.add_url_rule('/' + entity + '/delete' + suffix, endpoint='delete_' + singular,
+                     view_func=delete_record, defaults={'entity': entity}, methods=['POST'])
+
+
+@web.get('/supporting-schema')
 def supporting_schema():
-    schema_entities = get_supporting_schema()
-    relationship_map = [
-        {
-            'source': f"{entity['table_name']}.{foreign_key['column']}",
-            'target': foreign_key['references'],
-        }
-        for entity in schema_entities
-        for foreign_key in entity['foreign_keys']
-    ]
-    return render_template(
-        'supporting_schema.html',
-        schema_entities=schema_entities,
-        relationship_map=relationship_map,
-        schema_table_count=len(schema_entities),
-        schema_fk_count=len(relationship_map),
-        schema_column_count=sum(len(entity['columns']) for entity in schema_entities),
-        diagram_url='https://drive.google.com/file/d/1qE63pMoRr8kKwduSugy9wBy-7HfUvBIo/view?usp=sharing',
-        diagram_preview_url='https://drive.google.com/file/d/1qE63pMoRr8kKwduSugy9wBy-7HfUvBIo/preview',
-        er_diagram_url='https://drive.google.com/file/d/1j3ck5XOo52yQ4AiW-rxGcCxJ2qOTRdJm/view?usp=sharing',
-    )
+    entities, relationships = [], []
+    with db.cursor() as cur:
+        for table, pk, _, _ in ENTITIES.values():
+            cur.execute(f'SHOW FULL COLUMNS FROM {table}')
+            columns = [dict(name=row['Field'], type=row['Type'], role='Primary key' if row['Key'] == 'PRI' else 'Attribute',
+                            domain=row['Comment'] or ('Nullable' if row['Null'] == 'YES' else 'Required')) for row in cur.fetchall()]
+            cur.execute('''SELECT COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
+                FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE()
+                AND TABLE_NAME=%s AND REFERENCED_TABLE_NAME IS NOT NULL''', (table,))
+            fks = [dict(column=r['COLUMN_NAME'], references=f"{r['REFERENCED_TABLE_NAME']}.{r['REFERENCED_COLUMN_NAME']}") for r in cur.fetchall()]
+            for col in columns:
+                if any(fk['column'] == col['name'] for fk in fks):
+                    col['role'] = 'Foreign key'
+            entities.append(dict(display_name=table, table_name=table, primary_key=pk, columns=columns,
+                                 foreign_keys=fks, description='Live database definition. See schema.sql for constraints.'))
+            relationships.extend(dict(source=f"{table}.{fk['column']}", target=fk['references']) for fk in fks)
+    return render_template('supporting_schema.html', schema_entities=entities, relationship_map=relationships)
 
 
-@app.route('/er-diagram-image')
+@web.get('/er-diagram-image')
 def er_diagram_image():
-    return send_file(PROJECT_ROOT / 'ER_Diagram.png', mimetype='image/png')
+    return send_file(ROOT / 'ER_Diagram.png', mimetype='image/png')
 
-# ============================================================
-# CUSTOMERS
-# ============================================================
-@app.route('/customers')
-def customers():
-    db = get_db()
-    cursor = db.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM Customer ORDER BY CustomerID")
-    customers = cursor.fetchall()
-    mode = request.args.get('mode', 'full')
-    db.close()
-    return render_template('customers.html', customers=customers, mode=mode)
 
-@app.route('/customers/add', methods=['GET', 'POST'])
-def add_customer():
-    if request.method == 'POST':
-        db = get_db()
-        cursor = db.cursor()
-        try:
-            # Auto-generate next ID
-            cursor.execute("SELECT COALESCE(MAX(CustomerID), 0) + 1 AS next_id FROM Customer")
-            next_id = cursor.fetchone()['next_id']
-            # Handle optional fields
-            phone = request.form.get('phone') or None
-            loan = request.form.get('loan') or None
-            cursor.execute(
-                "INSERT INTO Customer (CustomerID, CustomerName, CreditScore, Email, PhoneNumber, Loan) VALUES (%s, %s, %s, %s, %s, %s)",
-                (next_id, request.form['name'], request.form['credit'],
-                 request.form['email'], phone, loan)
-            )
-            db.commit()
-            flash(f"Added {request.form['name']}!", "success")
-        except mysql.connector.Error as e:
-            flash(f"Error: {e}", "error")
-        db.close()
-        return redirect(url_for('customers'))
-    return render_template('add_customer.html')
-
-@app.route('/customers/delete/<int:id>')
-def delete_customer(id):
-    db = get_db()
-    cursor = db.cursor()
-    try:
-        cursor.execute("DELETE FROM Customer WHERE CustomerID = %s", (id,))
-        db.commit()
-        flash("Customer deleted!", "success")
-    except mysql.connector.Error as e:
-        flash(f"Error: {e}", "error")
-    db.close()
-    return redirect(url_for('customers'))
-
-# ============================================================
-# VEHICLES
-# ============================================================
-@app.route('/vehicles')
-def vehicles():
-    db = get_db()
-    cursor = db.cursor(dictionary=True)
-
-    status_filter = request.args.get('status', 'All')
-    if status_filter != 'All':
-        cursor.execute("SELECT * FROM Vehicle WHERE InventoryStatus = %s ORDER BY VIN", (status_filter,))
-    else:
-        cursor.execute("SELECT * FROM Vehicle ORDER BY VIN")
-
-    vehicles = cursor.fetchall()
-    mode = request.args.get('mode', 'full')
-    db.close()
-    return render_template('vehicles.html', vehicles=vehicles, current_filter=status_filter, mode=mode)
-
-@app.route('/vehicles/add', methods=['GET', 'POST'])
-def add_vehicle():
-    if request.method == 'POST':
-        db = get_db()
-        cursor = db.cursor()
-        try:
-            cursor.execute(
-                "INSERT INTO Vehicle (VIN, Model, Type, Year, Brand, DealershipID, Miles, BoughtPrice, InventoryStatus) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                (request.form['vin'], request.form['model'], request.form['type'],
-                 request.form['year'], request.form['brand'], request.form['dealership_id'],
-                 request.form['miles'], request.form['bought_price'], request.form['status'])
-            )
-            db.commit()
-            flash(f"Added {request.form['brand']} {request.form['model']}!", "success")
-        except mysql.connector.Error as e:
-            flash(f"Error: {e}", "error")
-        db.close()
-        return redirect(url_for('vehicles'))
-    return render_template('add_vehicle.html')
-
-# ============================================================
-# EMPLOYEES
-# ============================================================
-@app.route('/employees')
-def employees():
-    db = get_db()
-    cursor = db.cursor(dictionary=True)
-    cursor.execute("""
-        SELECT e.*, d.City AS DealershipCity
-        FROM Employee e
-        JOIN Dealership d ON e.DealershipID = d.DealershipID
-        ORDER BY e.EmployeeID
-    """)
-    employees = cursor.fetchall()
-    mode = request.args.get('mode', 'full')
-    db.close()
-    return render_template('employees.html', employees=employees, mode=mode)
-
-@app.route('/employees/add', methods=['GET', 'POST'])
-def add_employee():
-    if request.method == 'POST':
-        db = get_db()
-        cursor = db.cursor()
-        try:
-            cursor.execute("SELECT COALESCE(MAX(EmployeeID), 0) + 1 AS next_id FROM Employee")
-            next_id = cursor.fetchone()['next_id']
-            phone = request.form.get('phone') or None
-            cursor.execute(
-                "INSERT INTO Employee (EmployeeID, EmployeeName, PhoneNumber, Email, Position, DealershipID) VALUES (%s, %s, %s, %s, %s, %s)",
-                (next_id, request.form['name'], phone,
-                 request.form['email'], request.form['position'], request.form['dealership_id'])
-            )
-            db.commit()
-            flash(f"Added {request.form['name']}!", "success")
-        except mysql.connector.Error as e:
-            flash(f"Error: {e}", "error")
-        db.close()
-        return redirect(url_for('employees'))
-    return render_template('add_employee.html')
-
-@app.route('/employees/delete/<int:id>')
-def delete_employee(id):
-    db = get_db()
-    cursor = db.cursor()
-    try:
-        cursor.execute("DELETE FROM Employee WHERE EmployeeID = %s", (id,))
-        db.commit()
-        flash("Employee deleted!", "success")
-    except mysql.connector.Error as e:
-        flash(f"Error: {e}", "error")
-    db.close()
-    return redirect(url_for('employees'))
-
-# ============================================================
-# DEALERSHIPS
-# ============================================================
-@app.route('/dealerships')
-def dealerships():
-    db = get_db()
-    cursor = db.cursor(dictionary=True)
-    cursor.execute("""
-        SELECT d.*, COUNT(v.VIN) AS CarCount
-        FROM Dealership d
-        LEFT JOIN Vehicle v ON d.DealershipID = v.DealershipID
-        GROUP BY d.DealershipID
-    """)
-    dealerships = cursor.fetchall()
-    mode = request.args.get('mode', 'full')
-    db.close()
-    return render_template('dealerships.html', dealerships=dealerships, mode=mode)
-
-@app.route('/dealerships/add', methods=['GET', 'POST'])
-def add_dealership():
-    if request.method == 'POST':
-        db = get_db()
-        cursor = db.cursor()
-        try:
-            cursor.execute("SELECT COALESCE(MAX(DealershipID), 0) + 1 AS next_id FROM Dealership")
-            next_id = cursor.fetchone()['next_id']
-            cursor.execute(
-                "INSERT INTO Dealership (DealershipID, Address, City, State, ZipCode) VALUES (%s, %s, %s, %s, %s)",
-                (next_id, request.form['address'], request.form['city'],
-                 request.form['state'], request.form['zipcode'])
-            )
-            db.commit()
-            flash(f"Added dealership in {request.form['city']}!", "success")
-        except mysql.connector.Error as e:
-            flash(f"Error: {e}", "error")
-        db.close()
-        return redirect(url_for('dealerships'))
-    return render_template('add_dealership.html')
-
-@app.route('/dealerships/delete/<int:id>')
-def delete_dealership(id):
-    db = get_db()
-    cursor = db.cursor()
-    try:
-        cursor.execute("DELETE FROM Dealership WHERE DealershipID = %s", (id,))
-        db.commit()
-        flash("Dealership deleted!", "success")
-    except mysql.connector.Error as e:
-        flash(f"Error: {e}", "error")
-    db.close()
-    return redirect(url_for('dealerships'))
-
-# ============================================================
-# SALES
-# ============================================================
-@app.route('/sales')
-def sales():
-    db = get_db()
-    cursor = db.cursor(dictionary=True)
-    cursor.execute("""
-        SELECT s.SaleID, s.SaleDate, c.CustomerName, e.EmployeeName,
-               v.Brand, v.Model, s.SoldPrice, v.BoughtPrice, (s.SoldPrice - v.BoughtPrice) AS Profit
-        FROM SaleTransaction s
-        JOIN Customer c ON s.CustomerID = c.CustomerID
-        JOIN Employee e ON s.EmployeeID = e.EmployeeID
-        JOIN Vehicle v ON s.VIN = v.VIN
-        ORDER BY s.SaleDate DESC
-    """)
-    sales = cursor.fetchall()
-
-    cursor.execute("SELECT COALESCE(SUM(SoldPrice), 0) AS total FROM SaleTransaction")
-    total = cursor.fetchone()['total']
-
-    mode = request.args.get('mode', 'full')
-    db.close()
-    return render_template('sales.html', sales=sales, total_revenue=total, mode=mode)
-
-@app.route('/sales/add', methods=['GET', 'POST'])
-def add_sale():
-    if request.method == 'POST':
-        db = get_db()
-        cursor = db.cursor()
-        try:
-            cursor.execute("SELECT COALESCE(MAX(SaleID), 0) + 1 AS next_id FROM SaleTransaction")
-            next_id = cursor.fetchone()['next_id']
-            cursor.execute(
-                "INSERT INTO SaleTransaction (SaleID, SaleDate, CustomerID, EmployeeID, VIN, SoldPrice) VALUES (%s, %s, %s, %s, %s, %s)",
-                (next_id, request.form['date'], request.form['customer_id'],
-                 request.form['employee_id'], request.form['vin'], request.form['sold_price'])
-            )
-            db.commit()
-            flash("Sale added!", "success")
-        except mysql.connector.Error as e:
-            flash(f"Error: {e}", "error")
-        db.close()
-        return redirect(url_for('sales'))
-    return render_template('add_sale.html')
-
-@app.route('/sales/delete/<int:id>')
-def delete_sale(id):
-    db = get_db()
-    cursor = db.cursor()
-    try:
-        cursor.execute("DELETE FROM SaleTransaction WHERE SaleID = %s", (id,))
-        db.commit()
-        flash("Sale deleted!", "success")
-    except mysql.connector.Error as e:
-        flash(f"Error: {e}", "error")
-    db.close()
-    return redirect(url_for('sales'))
-
-# ============================================================
-# VEHICLES — Delete
-# ============================================================
-@app.route('/vehicles/delete/<path:vin>')
-def delete_vehicle(vin):
-    db = get_db()
-    cursor = db.cursor()
-    try:
-        cursor.execute("DELETE FROM Vehicle WHERE VIN = %s", (vin,))
-        db.commit()
-        flash("Vehicle deleted!", "success")
-    except mysql.connector.Error as e:
-        flash(f"Error: {e}", "error")
-    db.close()
-    return redirect(url_for('vehicles'))
-
-# ============================================================
-# SERVICE RECORDS
-# ============================================================
-@app.route('/services')
-def services():
-    db = get_db()
-    cursor = db.cursor(dictionary=True)
-    cursor.execute("""
-        SELECT sr.ServiceID, sr.ServiceDate, sr.ServiceDone, sr.Cost,
-               sr.VIN, v.Brand, v.Model, e.EmployeeName
-        FROM ServiceRecord sr
-        JOIN Vehicle v ON sr.VIN = v.VIN
-        JOIN Employee e ON sr.EmployeeID = e.EmployeeID
-        ORDER BY sr.ServiceDate DESC
-    """)
-    records = cursor.fetchall()
-    mode = request.args.get('mode', 'full')
-    db.close()
-    return render_template('services.html', records=records, mode=mode)
-
-@app.route('/services/add', methods=['GET', 'POST'])
-def add_service():
-    if request.method == 'POST':
-        db = get_db()
-        cursor = db.cursor()
-        try:
-            cursor.execute("SELECT COALESCE(MAX(ServiceID), 0) + 1 AS next_id FROM ServiceRecord")
-            next_id = cursor.fetchone()['next_id']
-            cursor.execute(
-                "INSERT INTO ServiceRecord (ServiceID, VIN, Cost, ServiceDate, ServiceDone, EmployeeID) VALUES (%s, %s, %s, %s, %s, %s)",
-                (next_id, request.form['vin'], request.form['cost'],
-                 request.form['date'], request.form['service_done'], request.form['employee_id'])
-            )
-            db.commit()
-            flash("Service record added!", "success")
-        except mysql.connector.Error as e:
-            flash(f"Error: {e}", "error")
-        db.close()
-        return redirect(url_for('services'))
-    return render_template('add_service.html')
-
-@app.route('/services/delete/<int:id>')
-def delete_service(id):
-    db = get_db()
-    cursor = db.cursor()
-    try:
-        cursor.execute("DELETE FROM ServiceRecord WHERE ServiceID = %s", (id,))
-        db.commit()
-        flash("Service record deleted!", "success")
-    except mysql.connector.Error as e:
-        flash(f"Error: {e}", "error")
-    db.close()
-    return redirect(url_for('services'))
-
-# ============================================================
-# SERVICE APPOINTMENTS
-# ============================================================
-@app.route('/appointments')
-def appointments():
-    db = get_db()
-    cursor = db.cursor(dictionary=True)
-    cursor.execute("""
-        SELECT sa.AppointmentID, sa.AppointmentDate, sa.Status,
-               c.CustomerName, e.EmployeeName, v.Brand, v.Model
-        FROM ServiceAppointment sa
-        JOIN Customer c ON sa.CustomerID = c.CustomerID
-        JOIN Employee e ON sa.EmployeeID = e.EmployeeID
-        JOIN Vehicle v ON sa.VIN = v.VIN
-        ORDER BY sa.AppointmentDate DESC
-    """)
-    appointments = cursor.fetchall()
-    mode = request.args.get('mode', 'full')
-    db.close()
-    return render_template('appointments.html', appointments=appointments, mode=mode)
-
-@app.route('/appointments/add', methods=['GET', 'POST'])
-def add_appointment():
-    if request.method == 'POST':
-        db = get_db()
-        cursor = db.cursor()
-        try:
-            cursor.execute("SELECT COALESCE(MAX(AppointmentID), 0) + 1 AS next_id FROM ServiceAppointment")
-            next_id = cursor.fetchone()['next_id']
-            cursor.execute(
-                "INSERT INTO ServiceAppointment (AppointmentID, EmployeeID, CustomerID, VIN, Status, AppointmentDate, DealershipID) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                (next_id, request.form['employee_id'], request.form['customer_id'],
-                 request.form['vin'], request.form['status'], request.form['date'],
-                 request.form['dealership_id'])
-            )
-            db.commit()
-            flash("Appointment added!", "success")
-        except mysql.connector.Error as e:
-            flash(f"Error: {e}", "error")
-        db.close()
-        return redirect(url_for('appointments'))
-    return render_template('add_appointment.html')
-
-@app.route('/appointments/delete/<int:id>')
-def delete_appointment(id):
-    db = get_db()
-    cursor = db.cursor()
-    try:
-        cursor.execute("DELETE FROM ServiceAppointment WHERE AppointmentID = %s", (id,))
-        db.commit()
-        flash("Appointment deleted!", "success")
-    except mysql.connector.Error as e:
-        flash(f"Error: {e}", "error")
-    db.close()
-    return redirect(url_for('appointments'))
-
-# ============================================================
-# RUN THE APP
-# ============================================================
 if __name__ == '__main__':
-    app.run(debug=False)
-
-
-# to run the app, use the command: python InterfaceDatabase.py
-# to access the website http://localhost:5000/
-# to run using Ngrok use ngrok.exe http 5000
+    create_app().run(host='127.0.0.1', port=int(os.getenv('PORT', '5000')), debug=False)

@@ -1,0 +1,5 @@
+<nav class="pagination" aria-label="Table pages">
+{% if pagination.previous %}<a href="{{ pagination.previous }}">Previous</a>{% endif %}
+<span>Page {{ pagination.page }} of {{ pagination.pages }} ({{ pagination.total }} records)</span>
+{% if pagination.next %}<a href="{{ pagination.next }}">Next</a>{% endif %}
+</nav>
