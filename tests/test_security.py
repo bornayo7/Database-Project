@@ -16,3 +16,11 @@ def test_password_and_signing_key_rotation_invalidate_sessions(config):
         new_client.set_cookie('session', cookie)
         assert new_client.get('/customers').status_code == 302
         assert new_client.post('/customers/delete/1').status_code == 401
+
+
+def test_opaque_vin_identity_is_not_normalized():
+    from validation import values_for, text
+    for vin in (' TEST', 'TEST#ALT', 'TEST?ALT', 'TEST/ALT'):
+        form = dict(date='2026-02-01', customer_id='1', employee_id='1', vin=vin, sold_price='1.00')
+        assert text(form, 'vin', 50) == vin
+        assert values_for('sales', form)[3] == vin

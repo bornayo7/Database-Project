@@ -18,10 +18,12 @@ class ValidationError(ValueError):
 
 
 def text(form, name, maximum=100, optional=False):
-    value = form.get(name, '').strip()
+    raw = form.get(name, '')
+    # VIN is an opaque database key. Preserve it in every create, lookup and delete.
+    value = raw if name == 'vin' else raw.strip()
     if not value and optional:
         return None
-    if not value or len(value) > maximum or any(ord(c) < 32 for c in value):
+    if not value.strip() or len(value) > maximum or any(ord(c) < 32 for c in value):
         raise ValidationError(f'{name.replace("_", " ").capitalize()} must contain 1 to {maximum} printable characters.')
     return value
 
